@@ -1,0 +1,27 @@
+[project]
+name = "downloads-monitor"
+version = "0.1.0"
+description = "Monitor Windows Downloads folder for file changes and SHA1 hashes"
+authors = [
+    {name = "Developer", email = "dev@example.com"}
+]
+dependencies = [
+    "pathlib",
+    "hashlib",
+    "csv",
+    "os",
+    "datetime",
+    "time"
+]
+requires-python = ">=3.8"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+dev-dependencies = [
+    "pytest",
+    "black",
+    "flake8"
+]

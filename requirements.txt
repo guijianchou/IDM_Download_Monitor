@@ -1,0 +1,7 @@
+# Project dependencies
+# Note: pathlib, hashlib, csv, os, datetime, time are Python standard libraries, no installation needed
+
+# Development dependencies (optional)
+pytest>=7.0.0
+black>=22.0.0
+flake8>=5.0.0
