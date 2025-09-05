@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+1#!/usr/bin/env python3
 """
 Downloads folder monitoring main program
 Monitor SHA1 and modification time of all files and folders in Windows Downloads directory
