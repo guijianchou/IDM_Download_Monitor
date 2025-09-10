@@ -8,6 +8,8 @@ Supports both Windows native and WSL2 environments
 import os
 import sys
 import time
+import argparse
+import logging
 from file_monitor import (
     scan_downloads_folder,
     load_from_csv,
@@ -243,17 +245,110 @@ def show_system_info():
             print(f"{key}: {value}")
 
 
+def setup_logging(log_level="INFO", log_file=None):
+    """Configure logging for the application"""
+    level = getattr(logging, log_level.upper(), logging.INFO)
+    
+    # Create formatter
+    formatter = logging.Formatter(
+        '%(asctime)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    
+    # Configure root logger
+    logger = logging.getLogger()
+    logger.setLevel(level)
+    
+    # Clear existing handlers
+    logger.handlers.clear()
+    
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    
+    # File handler (if specified)
+    if log_file:
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+    
+    return logger
+
+
+def create_argument_parser():
+    """Create and return command line argument parser"""
+    parser = argparse.ArgumentParser(
+        description="Downloads folder monitoring tool - Monitor SHA1 and modification time of all files",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""Examples:
+  %(prog)s                    # Execute monitoring once
+  %(prog)s -c                 # Continuous monitoring, 60s interval  
+  %(prog)s -c 30              # Continuous monitoring, 30s interval
+  %(prog)s --info             # Show system information
+  %(prog)s --no-ext           # Disable extensions
+  %(prog)s --ext-only         # Run only extensions"""
+    )
+    
+    parser.add_argument(
+        "-c", "--continuous", 
+        nargs="?", 
+        const=60, 
+        type=int, 
+        metavar="SECONDS",
+        help="Enable continuous monitoring with optional interval in seconds (default: 60)"
+    )
+    
+    parser.add_argument(
+        "--info", "-i", 
+        action="store_true", 
+        help="Show system information"
+    )
+    
+    parser.add_argument(
+        "--no-ext", 
+        action="store_true", 
+        help="Disable extensions"
+    )
+    
+    parser.add_argument(
+        "--ext-only", 
+        action="store_true", 
+        help="Run only extensions (requires previous data)"
+    )
+    
+    parser.add_argument(
+        "--downloads-path", 
+        type=str, 
+        help="Override Downloads folder path"
+    )
+    
+    parser.add_argument(
+        "--csv-path", 
+        type=str, 
+        help="Override CSV output file path"
+    )
+    
+    parser.add_argument(
+        "--log-level", 
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"], 
+        default="INFO",
+        help="Set logging level (default: INFO)"
+    )
+    
+    parser.add_argument(
+        "--log-file", 
+        type=str, 
+        help="Write logs to file (in addition to console)"
+    )
+    
+    return parser
+
+
 def show_help():
-    """Display help information"""
-    print("Downloads folder monitoring tool")
-    print("\nUsage:")
-    print("  python app.py              # Execute monitoring once")
-    print("  python app.py -c           # Continuous monitoring, default 60s interval")
-    print("  python app.py -c 30        # Continuous monitoring, 30s interval")
-    print("  python app.py --help       # Show help information")
-    print("  python app.py --info       # Show system information")
-    print("  python app.py --no-ext     # Disable extensions")
-    print("  python app.py --ext-only   # Run only extensions (requires previous data)")
+    """Display help information (legacy function)"""
+    parser = create_argument_parser()
+    parser.print_help()
 
 
 def run_extensions_only():
@@ -300,28 +395,34 @@ def monitor_continuous(interval=60):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        if sys.argv[1] == "--continuous" or sys.argv[1] == "-c":
-            interval = 60
-            if len(sys.argv) > 2:
-                try:
-                    interval = int(sys.argv[2])
-                except ValueError:
-                    print("Error: Interval time must be an integer")
-                    sys.exit(1)
-            monitor_continuous(interval)
-        elif sys.argv[1] == "--help" or sys.argv[1] == "-h":
-            show_help()
-        elif sys.argv[1] == "--info" or sys.argv[1] == "-i":
-            show_system_info()
-        elif sys.argv[1] == "--no-ext":
-            monitor = DownloadsMonitor(enable_extensions=False)
-            monitor.run_monitoring_cycle()
-        elif sys.argv[1] == "--ext-only":
-            run_extensions_only()
-        else:
-            print(f"Unknown parameter: {sys.argv[1]}")
-            print("Use --help to see help information")
+    # Parse command line arguments
+    parser = create_argument_parser()
+    args = parser.parse_args()
+    
+    # Setup logging
+    logger = setup_logging(args.log_level, args.log_file)
+    
+    # Handle different command modes
+    if args.info:
+        show_system_info()
+    elif args.ext_only:
+        success = run_extensions_only()
+        sys.exit(0 if success else 1)
+    elif args.continuous is not None:
+        # Continuous monitoring mode
+        interval = args.continuous
+        print(f"Starting continuous monitoring with {interval}s interval")
+        monitor = DownloadsMonitor(
+            csv_path=args.csv_path,
+            enable_extensions=not args.no_ext
+        )
+        continuous_monitor = ContinuousMonitor(monitor, interval)
+        continuous_monitor.start()
     else:
         # Default: execute monitoring once
-        main()
+        monitor = DownloadsMonitor(
+            csv_path=args.csv_path,
+            enable_extensions=not args.no_ext
+        )
+        success = monitor.run_monitoring_cycle()
+        sys.exit(0 if success else 1)

@@ -38,7 +38,29 @@ def get_file_timestamp(file_path):
         file_path (str): File path
 
     Returns:
-        str: Timestamp string in YY/MM/DD format
+        str: Timestamp string in ISO8601 format (YYYY-MM-DDTHH:MM:SS)
+    """
+    try:
+        if not os.path.exists(file_path):
+            return None
+
+        timestamp = os.path.getmtime(file_path)
+        dt = datetime.fromtimestamp(timestamp)
+        return dt.strftime("%Y-%m-%dT%H:%M:%S")
+    except Exception as e:
+        print(f"Error getting timestamp for {file_path}: {e}")
+        return None
+
+
+def get_file_timestamp_legacy(file_path):
+    """
+    Get the last modification timestamp of a file in legacy format
+    
+    Args:
+        file_path (str): File path
+    
+    Returns:
+        str: Timestamp string in YY/MM/DD format (for backward compatibility)
     """
     try:
         if not os.path.exists(file_path):
@@ -76,37 +98,74 @@ def is_wsl2():
         return False
 
 
-def get_downloads_path():
+def get_downloads_path(override_path=None):
     """
     Get Downloads folder path based on system environment
+    
+    Args:
+        override_path (str): Override path if specified
 
     Returns:
         str: Complete path to Downloads folder
     """
+    # Use override path if provided
+    if override_path:
+        if os.path.exists(override_path):
+            print(f"Using override path: {override_path}")
+            return override_path
+        else:
+            print(f"Warning: Override path doesn't exist: {override_path}")
+    
     # Check if running in WSL2
     if is_wsl2():
         print("WSL2 environment detected")
+        
+        # Check environment variable override first
+        env_username = os.environ.get('MONITOR_WIN_USERNAME')
+        if env_username:
+            env_path = f"/mnt/c/Users/{env_username}/Downloads"
+            if os.path.exists(env_path):
+                print(f"Using environment username path: {env_path}")
+                return env_path
 
-        # Use WSL2 path with default username 'zen'
+        # Try to auto-detect by scanning /mnt/c/Users directory
+        users_dir = "/mnt/c/Users"
+        if os.path.exists(users_dir):
+            try:
+                for user_dir in os.listdir(users_dir):
+                    if user_dir.lower() in ['public', 'default', 'all users']:
+                        continue
+                    downloads_candidate = os.path.join(users_dir, user_dir, "Downloads")
+                    if os.path.exists(downloads_candidate) and os.access(downloads_candidate, os.R_OK):
+                        print(f"Auto-detected WSL2 path: {downloads_candidate}")
+                        return downloads_candidate
+            except (PermissionError, OSError) as e:
+                print(f"Error scanning users directory: {e}")
+        
+        # Fallback: Use WSL2 path with default username 'zen'
         wsl2_path = "/mnt/c/Users/zen/Downloads"
         if os.path.exists(wsl2_path):
-            print(f"Using WSL2 path: {wsl2_path}")
+            print(f"Using default WSL2 path: {wsl2_path}")
             return wsl2_path
 
-        # If default path not found, try to get Windows username
+        # Last resort: Try to get Windows username via cmd
         try:
             import subprocess
-
-            result = subprocess.run(["cmd.exe", "/c", "echo %USERNAME%"], capture_output=True, text=True, shell=True)
+            result = subprocess.run(
+                ["cmd.exe", "/c", "echo %USERNAME%"], 
+                capture_output=True, 
+                text=True, 
+                timeout=5
+            )
             if result.returncode == 0:
-                username = result.stdout.strip().lower()
-                if username:
+                username = result.stdout.strip()
+                if username and username != "%USERNAME%":
                     fallback_path = f"/mnt/c/Users/{username}/Downloads"
                     if os.path.exists(fallback_path):
-                        print(f"Using detected username path: {fallback_path}")
+                        print(f"Using cmd-detected username path: {fallback_path}")
                         return fallback_path
-        except Exception:
-            pass
+        except (subprocess.TimeoutExpired, Exception) as e:
+            print(f"Failed to detect Windows username: {e}")
 
         print("WSL2 detected but Downloads path not found, falling back to Windows path")
 
@@ -197,9 +256,46 @@ def scan_downloads_folder():
     return files_info
 
 
+def compare_timestamps(ts1, ts2):
+    """
+    Compare two timestamps, handling both ISO8601 and legacy formats
+    
+    Args:
+        ts1 (str): First timestamp
+        ts2 (str): Second timestamp
+    
+    Returns:
+        int: -1 if ts1 < ts2, 0 if equal, 1 if ts1 > ts2
+    """
+    try:
+        # Try to parse as ISO8601 first
+        if 'T' in ts1 and 'T' in ts2:
+            dt1 = datetime.fromisoformat(ts1)
+            dt2 = datetime.fromisoformat(ts2)
+        else:
+            # Fall back to legacy format parsing
+            dt1 = datetime.strptime(ts1, "%y/%m/%d")
+            dt2 = datetime.strptime(ts2, "%y/%m/%d")
+        
+        if dt1 < dt2:
+            return -1
+        elif dt1 > dt2:
+            return 1
+        else:
+            return 0
+    except (ValueError, TypeError):
+        # If parsing fails, fall back to string comparison
+        if ts1 < ts2:
+            return -1
+        elif ts1 > ts2:
+            return 1
+        else:
+            return 0
+
+
 def update_csv_data(existing_data, new_data):
     """
-    Update CSV data with improved SHA1-based deduplication
+    Update CSV data with improved SHA1-based deduplication and better timestamp comparison
 
     Args:
         existing_data (list): Existing CSV data
@@ -243,10 +339,10 @@ def update_csv_data(existing_data, new_data):
             # Found existing file with same SHA1
             existing_items = sha1_index[sha1]
             
-            # Find the most recent version (by timestamp)
+            # Find the most recent version (by timestamp) - prefer current scan
             most_recent = new_item
             for existing in existing_items:
-                if existing["timestamp"] > most_recent["timestamp"]:
+                if compare_timestamps(existing["timestamp"], most_recent["timestamp"]) > 0:
                     most_recent = existing
             
             # Add the most recent version
@@ -265,7 +361,7 @@ def update_csv_data(existing_data, new_data):
 
 def save_to_csv(data, csv_path=None):
     """
-    Save data to CSV file in Downloads folder
+    Save data to CSV file in Downloads folder with enhanced format
 
     Args:
         data (list): Data to save
@@ -280,20 +376,33 @@ def save_to_csv(data, csv_path=None):
 
     try:
         with open(csv_path, "w", newline="", encoding="utf-8") as csvfile:
-            fieldnames = ["path", "sha1sum", "timestamp"]
+            fieldnames = ["path", "rel_path", "folder_name", "filename", "sha1sum", "timestamp", "mtime_iso"]
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
             writer.writeheader()
             for item in data:
-                # Create path in format: ~\folder\name
+                # Create path in format: ~\folder\name (backward compatibility)
                 if item["folder_name"] == "~":
                     # Root directory files
                     path = f"~\\{item['filename']}"
+                    rel_path = item['filename']
                 else:
                     # Subfolder files
                     path = f"~\\{item['folder_name']}\\{item['filename']}"
-
-                writer.writerow({"path": path, "sha1sum": item["sha1"], "timestamp": item["timestamp"]})
+                    rel_path = f"{item['folder_name']}/{item['filename']}"
+                
+                # Generate legacy timestamp for backward compatibility
+                legacy_timestamp = get_file_timestamp_legacy(item.get('full_path', '')) if item.get('full_path') else item.get('timestamp', '')
+                
+                writer.writerow({
+                    "path": path, 
+                    "rel_path": rel_path,
+                    "folder_name": item['folder_name'],
+                    "filename": item['filename'],
+                    "sha1sum": item["sha1"], 
+                    "timestamp": legacy_timestamp or item.get('timestamp', ''),
+                    "mtime_iso": item.get('timestamp', '')  # Now stores ISO8601 format
+                })
 
         print(f"Data saved to {csv_path}")
     except Exception as e:
@@ -302,13 +411,13 @@ def save_to_csv(data, csv_path=None):
 
 def load_from_csv(csv_path=None):
     """
-    Load data from CSV file in Downloads folder
+    Load data from CSV file in Downloads folder with backward compatibility
 
     Args:
         csv_path (str): CSV file path (if None, loads from Downloads folder)
 
     Returns:
-        list: Loaded data
+        list: Loaded data with reconstructed full_path
     """
     import csv
 
@@ -320,33 +429,54 @@ def load_from_csv(csv_path=None):
     data = []
     try:
         if os.path.exists(csv_path):
+            downloads_path = get_downloads_path()
             with open(csv_path, "r", newline="", encoding="utf-8") as csvfile:
                 reader = csv.DictReader(csvfile)
                 for row in reader:
-                    # Parse path to extract folder_name and filename
-                    path = row["path"]
-                    if path.startswith("~\\"):
-                        path_parts = path[2:].split("\\")
-                        if len(path_parts) == 1:
-                            # Root directory file: ~\filename
-                            folder_name = "~"
-                            filename = path_parts[0]
-                        else:
-                            # Subfolder file: ~\folder\filename
-                            folder_name = path_parts[0]
-                            filename = path_parts[1]
+                    # Handle both old and new CSV formats
+                    if "folder_name" in row and "filename" in row:
+                        # New format - direct access
+                        folder_name = row["folder_name"]
+                        filename = row["filename"]
+                        rel_path = row.get("rel_path", "")
                     else:
-                        folder_name = "~"
-                        filename = path
+                        # Legacy format - parse from path
+                        path = row["path"]
+                        if path.startswith("~\\"):
+                            path_parts = path[2:].split("\\")
+                            if len(path_parts) == 1:
+                                # Root directory file: ~\filename
+                                folder_name = "~"
+                                filename = path_parts[0]
+                                rel_path = filename
+                            else:
+                                # Subfolder file: ~\folder\filename
+                                folder_name = path_parts[0]
+                                filename = path_parts[1]
+                                rel_path = f"{folder_name}/{filename}"
+                        else:
+                            folder_name = "~"
+                            filename = path
+                            rel_path = filename
+                    
+                    # Reconstruct full_path
+                    if folder_name == "~":
+                        full_path = os.path.join(downloads_path, filename)
+                    else:
+                        full_path = os.path.join(downloads_path, folder_name, filename)
+                    
+                    # Use ISO timestamp if available, otherwise legacy timestamp
+                    timestamp = row.get("mtime_iso", row.get("timestamp", ""))
 
                     data.append(
                         {
                             "root_dir": "~",
                             "folder_name": folder_name,
                             "filename": filename,
-                            "full_path": "",  # Full path not stored in CSV
+                            "full_path": full_path,  # Now reconstructed
+                            "rel_path": rel_path,
                             "sha1": row["sha1sum"],
-                            "timestamp": row["timestamp"],
+                            "timestamp": timestamp,
                         }
                     )
     except Exception as e:

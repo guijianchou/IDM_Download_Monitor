@@ -6,12 +6,7 @@ authors = [
     {name = "Developer", email = "dev@example.com"}
 ]
 dependencies = [
-    "pathlib",
-    "hashlib",
-    "csv",
-    "os",
-    "datetime",
-    "time"
+    # No external dependencies - uses only Python standard library
 ]
 requires-python = ">=3.8"
 

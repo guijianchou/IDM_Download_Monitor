@@ -91,7 +91,7 @@ class FileSizeAnalyzer:
         if size_bytes < 1024:  # < 1KB
             self.size_categories["Tiny (< 1KB)"] += 1
         elif size_bytes < 1024 * 1024:  # < 1MB
-            self.size_categories["Small (1MB - 1MB)"] += 1
+            self.size_categories["Small (1KB - 1MB)"] += 1
         elif size_bytes < 100 * 1024 * 1024:  # < 100MB
             self.size_categories["Medium (1MB - 100MB)"] += 1
         elif size_bytes < 1024 * 1024 * 1024:  # < 1GB
