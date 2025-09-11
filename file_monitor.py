@@ -76,31 +76,17 @@ def get_file_timestamp_legacy(file_path):
 
 def is_wsl2():
     """
-    Check if running in WSL2 environment
+    Check if running in WSL2 environment (Always returns False for Windows-only version)
 
     Returns:
-        bool: True if running in WSL2, False otherwise
+        bool: Always False for Windows-only version
     """
-    try:
-        # Check for WSL2 specific indicators
-        if os.path.exists("/proc/version"):
-            with open("/proc/version", "r") as f:
-                version_info = f.read().lower()
-                if "microsoft" in version_info or "wsl" in version_info:
-                    return True
-
-        # Check environment variables
-        if "WSL_DISTRO_NAME" in os.environ:
-            return True
-
-        return False
-    except Exception:
-        return False
+    return False
 
 
 def get_downloads_path(override_path=None):
     """
-    Get Downloads folder path based on system environment
+    Get Downloads folder path for Windows system
     
     Args:
         override_path (str): Override path if specified
@@ -116,59 +102,6 @@ def get_downloads_path(override_path=None):
         else:
             print(f"Warning: Override path doesn't exist: {override_path}")
     
-    # Check if running in WSL2
-    if is_wsl2():
-        print("WSL2 environment detected")
-        
-        # Check environment variable override first
-        env_username = os.environ.get('MONITOR_WIN_USERNAME')
-        if env_username:
-            env_path = f"/mnt/c/Users/{env_username}/Downloads"
-            if os.path.exists(env_path):
-                print(f"Using environment username path: {env_path}")
-                return env_path
-
-        # Try to auto-detect by scanning /mnt/c/Users directory
-        users_dir = "/mnt/c/Users"
-        if os.path.exists(users_dir):
-            try:
-                for user_dir in os.listdir(users_dir):
-                    if user_dir.lower() in ['public', 'default', 'all users']:
-                        continue
-                    downloads_candidate = os.path.join(users_dir, user_dir, "Downloads")
-                    if os.path.exists(downloads_candidate) and os.access(downloads_candidate, os.R_OK):
-                        print(f"Auto-detected WSL2 path: {downloads_candidate}")
-                        return downloads_candidate
-            except (PermissionError, OSError) as e:
-                print(f"Error scanning users directory: {e}")
-        
-        # Fallback: Use WSL2 path with default username 'zen'
-        wsl2_path = "/mnt/c/Users/zen/Downloads"
-        if os.path.exists(wsl2_path):
-            print(f"Using default WSL2 path: {wsl2_path}")
-            return wsl2_path
-
-        # Last resort: Try to get Windows username via cmd
-        try:
-            import subprocess
-            result = subprocess.run(
-                ["cmd.exe", "/c", "echo %USERNAME%"], 
-                capture_output=True, 
-                text=True, 
-                timeout=5
-            )
-            if result.returncode == 0:
-                username = result.stdout.strip()
-                if username and username != "%USERNAME%":
-                    fallback_path = f"/mnt/c/Users/{username}/Downloads"
-                    if os.path.exists(fallback_path):
-                        print(f"Using cmd-detected username path: {fallback_path}")
-                        return fallback_path
-        except (subprocess.TimeoutExpired, Exception) as e:
-            print(f"Failed to detect Windows username: {e}")
-
-        print("WSL2 detected but Downloads path not found, falling back to Windows path")
-
     # Windows native path
     user_profile = os.path.expanduser("~")
     downloads_path = os.path.join(user_profile, "Downloads")
@@ -186,9 +119,8 @@ def get_system_info():
         "platform": platform.system(),
         "machine": platform.machine(),
         "node": platform.node(),
-        "is_wsl2": is_wsl2(),
+        "is_wsl2": False,  # Always False for Windows-only version
         "downloads_path": get_downloads_path(),
-        "env_vars": {k: v for k, v in os.environ.items() if "WSL" in k or "MICROSOFT" in k},
     }
 
     return info

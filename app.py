@@ -395,6 +395,14 @@ def monitor_continuous(interval=60):
 
 
 if __name__ == "__main__":
+    # Set up proper encoding for console output
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except AttributeError:
+        # For older Python versions
+        pass
+    
     # Parse command line arguments
     parser = create_argument_parser()
     args = parser.parse_args()

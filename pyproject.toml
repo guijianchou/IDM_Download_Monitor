@@ -1,14 +1,21 @@
 [project]
 name = "downloads-monitor"
-version = "0.1.0"
-description = "Monitor Windows Downloads folder for file changes and SHA1 hashes"
+version = "1.0.0"
+description = "Monitor Windows Downloads folder with GUI and CLI interfaces - Windows-native version"
 authors = [
     {name = "Developer", email = "dev@example.com"}
 ]
 dependencies = [
-    # No external dependencies - uses only Python standard library
+    # No external dependencies - uses only Python standard library + Tkinter (built-in)
 ]
 requires-python = ">=3.8"
+
+[project.scripts]
+downloads-monitor-gui = "gui_app:main"
+downloads-monitor-cli = "app:main"
+
+[project.gui-scripts]
+downloads-monitor = "gui_app:main"
 
 [build-system]
 requires = ["hatchling"]
