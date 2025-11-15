@@ -1,9 +1,0 @@
-{
-  "downloads_path": "C:\\Users\\Zen\\Downloads",
-  "csv_path": "",
-  "continuous_monitoring": false,
-  "monitoring_interval": 60,
-  "enable_extensions": true,
-  "log_level": "INFO",
-  "auto_organize": true
-}
