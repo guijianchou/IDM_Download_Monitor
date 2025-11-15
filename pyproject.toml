@@ -1,29 +1,38 @@
 [project]
 name = "downloads-monitor"
-version = "1.0.0"
-description = "Monitor Windows Downloads folder with GUI and CLI interfaces - Windows-native version"
+version = "2.0.0"
+description = "Monitor Windows Downloads folder with CLI interface - Windows-native version with configuration support"
+readme = "README.md"
+license = {text = "MIT"}
 authors = [
     {name = "Developer", email = "dev@example.com"}
 ]
-dependencies = [
-    # No external dependencies - uses only Python standard library + Tkinter (built-in)
+keywords = ["monitor", "downloads", "files", "cli", "windows", "organizer", "sha1"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: Microsoft :: Windows :: Windows 10",
+    "Operating System :: Microsoft :: Windows :: Windows 11",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Filesystems",
+    "Topic :: System :: Monitoring",
+    "Topic :: Utilities",
+    "Typing :: Typed",
 ]
+dependencies = []
 requires-python = ">=3.8"
 
 [project.scripts]
-downloads-monitor-gui = "gui_app:main"
-downloads-monitor-cli = "app:main"
-
-[project.gui-scripts]
-downloads-monitor = "gui_app:main"
+downloads-monitor = "app:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
-
-[tool.uv]
-dev-dependencies = [
-    "pytest",
-    "black",
-    "flake8"
-]

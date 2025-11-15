@@ -1,0 +1,31 @@
+{
+  "downloads_path": null,
+  "csv_path": "results.csv",
+  "monitoring": {
+    "interval_seconds": 60,
+    "enable_extensions": true,
+    "calculate_sha1": true
+  },
+  "organization": {
+    "auto_organize": true,
+    "categories": {
+      "Programs": [".exe", ".msi", ".bat", ".cmd", ".ps1"],
+      "Compressed": [".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".iso"],
+      "Documents": [".pdf", ".doc", ".docx", ".txt", ".rtf", ".md", ".csv", ".xls", ".xlsx", ".ppt", ".pptx"],
+      "Pictures": [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".webp", ".ico", ".tiff", ".tif"],
+      "Music": [".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a"],
+      "Video": [".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm"]
+    },
+    "excluded_files": ["results.csv", "desktop.ini", "Thumbs.db", ".DS_Store"]
+  },
+  "performance": {
+    "max_file_size_for_sha1_mb": 500,
+    "chunk_size_bytes": 8192,
+    "enable_multithreading": false
+  },
+  "logging": {
+    "level": "WARNING",
+    "file": null,
+    "console": true
+  }
+}

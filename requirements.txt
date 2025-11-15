@@ -1,7 +1,12 @@
-# Project dependencies
-# Note: pathlib, hashlib, csv, os, datetime, time are Python standard libraries, no installation needed
+# Downloads Monitor - Python Dependencies
+# This project uses only Python standard library for runtime
+# No external dependencies required for core functionality
 
-# Development dependencies (optional)
-pytest>=7.0.0
-black>=22.0.0
-flake8>=5.0.0
+# Optional development tools (uncomment if needed):
+# pytest>=7.0.0          # Testing framework
+# black>=22.0.0          # Code formatter  
+# flake8>=5.0.0          # Linting tool
+# mypy>=1.0.0            # Type checking
+# pylint>=2.15.0         # Code analysis
+
+# Note: All core functionality works with Python 3.8+ standard library only
