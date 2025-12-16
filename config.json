@@ -4,24 +4,34 @@
   "monitoring": {
     "interval_seconds": 60,
     "enable_extensions": true,
-    "calculate_sha1": true
+    "calculate_sha1": true,
+    "incremental_scan": true
   },
   "organization": {
     "auto_organize": true,
     "categories": {
       "Programs": [".exe", ".msi", ".bat", ".cmd", ".ps1"],
-      "Compressed": [".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".iso"],
-      "Documents": [".pdf", ".doc", ".docx", ".txt", ".rtf", ".md", ".csv", ".xls", ".xlsx", ".ppt", ".pptx"],
-      "Pictures": [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".webp", ".ico", ".tiff", ".tif"],
-      "Music": [".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a"],
-      "Video": [".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm"]
+      "Documents": [".pdf", ".doc", ".docx", ".txt", ".rtf", ".md", ".csv", ".xls", ".xlsx", ".ppt", ".pptx", ".epub", ".mobi", ".azw", ".azw3", ".py", ".js", ".html", ".css", ".json", ".xml", ".yaml", ".yml", ".sql", ".sh", ".php", ".java", ".cpp", ".c", ".h"],
+      "Pictures": [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".webp", ".ico", ".tiff", ".tif", ".ttf", ".otf", ".woff", ".woff2", ".eot"],
+      "Videos": [".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm"],
+      "Compressed": [".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".iso", ".torrent"],
+      "Music": [".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a"]
     },
-    "excluded_files": ["results.csv", "desktop.ini", "Thumbs.db", ".DS_Store"]
+    "excluded_files": ["results.csv", "desktop.ini", "Thumbs.db", ".DS_Store"],
+    "smart_rules": [
+      {"pattern": "screenshot*", "category": "Pictures"},
+      {"pattern": "Screen Shot*", "category": "Pictures"},
+      {"pattern": "IMG_*", "category": "Pictures"},
+      {"pattern": "DSC_*", "category": "Pictures"},
+      {"pattern": "wallpaper*", "category": "Pictures"},
+      {"pattern": "*setup*", "category": "Programs"},
+      {"pattern": "*installer*", "category": "Programs"},
+      {"pattern": "*portable*", "category": "Programs"}
+    ]
   },
   "performance": {
     "max_file_size_for_sha1_mb": 500,
-    "chunk_size_bytes": 8192,
-    "enable_multithreading": false
+    "chunk_size_bytes": 32768
   },
   "logging": {
     "level": "WARNING",

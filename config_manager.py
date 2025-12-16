@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
-"""
-Configuration management for Downloads Monitor
-Handles loading and saving configuration from config.json
-"""
+"""Configuration management for Downloads Monitor"""
 
 import json
-import os
+import logging
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 
 class ConfigManager:
@@ -19,184 +16,151 @@ class ConfigManager:
         "monitoring": {
             "interval_seconds": 60,
             "enable_extensions": True,
-            "calculate_sha1": True
+            "calculate_sha1": True,
+            "incremental_scan": True
         },
         "organization": {
             "auto_organize": True,
             "categories": {
                 "Programs": [".exe", ".msi", ".bat", ".cmd", ".ps1"],
-                "Compressed": [".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".iso"],
-                "Documents": [".pdf", ".doc", ".docx", ".txt", ".rtf", ".md", ".csv", ".xls", ".xlsx", ".ppt", ".pptx"],
-                "Music": [".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a"],
-                "Video": [".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm"]
+                "Documents": [".pdf", ".doc", ".docx", ".txt", ".rtf", ".md", ".csv", ".xls", ".xlsx", ".ppt", ".pptx", ".epub", ".mobi", ".azw", ".azw3", ".py", ".js", ".html", ".css", ".json", ".xml", ".yaml", ".yml", ".sql", ".sh", ".php", ".java", ".cpp", ".c", ".h"],
+                "Pictures": [".jpg", ".jpeg", ".png", ".gif", ".bmp", ".svg", ".webp", ".ico", ".tiff", ".tif", ".ttf", ".otf", ".woff", ".woff2", ".eot"],
+                "Videos": [".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm"],
+                "Compressed": [".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".iso", ".torrent"],
+                "Music": [".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a"]
             },
-            "excluded_files": ["results.csv", "desktop.ini", "Thumbs.db", ".DS_Store"]
+            "excluded_files": ["results.csv", "desktop.ini", "Thumbs.db", ".DS_Store"],
+            "smart_rules": [
+                {"pattern": "screenshot*", "category": "Pictures"},
+                {"pattern": "Screen Shot*", "category": "Pictures"},
+                {"pattern": "IMG_*", "category": "Pictures"},
+                {"pattern": "DSC_*", "category": "Pictures"},
+                {"pattern": "wallpaper*", "category": "Pictures"},
+                {"pattern": "*setup*", "category": "Programs"},
+                {"pattern": "*installer*", "category": "Programs"},
+                {"pattern": "*portable*", "category": "Programs"}
+            ]
         },
-        "performance": {
-            "max_file_size_for_sha1_mb": 500,
-            "chunk_size_bytes": 8192,
-            "enable_multithreading": False
-        },
-        "logging": {
-            "level": "INFO",
-            "file": None,
-            "console": True
-        }
+        "performance": {"max_file_size_for_sha1_mb": 500, "chunk_size_bytes": 32768},
+        "logging": {"level": "INFO", "file": None, "console": True}
     }
 
     def __init__(self, config_path: str = "config.json"):
-        """
-        Initialize configuration manager
-        
-        Args:
-            config_path: Path to configuration file
-        """
         self.config_path = config_path
+        self.logger = logging.getLogger(__name__)
         self.config = self._load_config()
 
     def _load_config(self) -> Dict[str, Any]:
-        """Load configuration from file or create default"""
-        if os.path.exists(self.config_path):
+        config_path = Path(self.config_path)
+        if config_path.exists():
             try:
-                with open(self.config_path, 'r', encoding='utf-8') as f:
+                with config_path.open('r', encoding='utf-8') as f:
                     config = json.load(f)
-                # Merge with defaults to ensure all keys exist
-                return self._merge_with_defaults(config)
+                merged = self._merge_with_defaults(config)
+                errors = self._validate_config(merged)
+                if errors:
+                    self.logger.warning("Configuration validation errors:")
+                    for error in errors:
+                        self.logger.warning(f"  - {error}")
+                return merged
             except Exception as e:
-                print(f"Warning: Failed to load config from {self.config_path}: {e}")
-                print("Using default configuration")
+                self.logger.warning(f"Failed to load config: {e}. Using defaults.")
                 return self.DEFAULT_CONFIG.copy()
         else:
-            # Create default config file
             self.save_config(self.DEFAULT_CONFIG)
             return self.DEFAULT_CONFIG.copy()
 
     def _merge_with_defaults(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Merge loaded config with defaults to ensure all keys exist"""
-        def merge_dict(default: Dict, custom: Dict) -> Dict:
+        def merge(default: Dict, custom: Dict) -> Dict:
             result = default.copy()
             for key, value in custom.items():
                 if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-                    result[key] = merge_dict(result[key], value)
+                    result[key] = merge(result[key], value)
                 else:
                     result[key] = value
             return result
-        
-        return merge_dict(self.DEFAULT_CONFIG, config)
+        return merge(self.DEFAULT_CONFIG, config)
 
     def save_config(self, config: Optional[Dict[str, Any]] = None) -> bool:
-        """
-        Save configuration to file
-        
-        Args:
-            config: Configuration to save (uses current config if None)
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        if config is None:
-            config = self.config
-            
         try:
-            with open(self.config_path, 'w', encoding='utf-8') as f:
-                json.dump(config, f, indent=2, ensure_ascii=False)
+            with Path(self.config_path).open('w', encoding='utf-8') as f:
+                json.dump(config or self.config, f, indent=2, ensure_ascii=False)
             return True
         except Exception as e:
-            print(f"Error saving config to {self.config_path}: {e}")
+            self.logger.error(f"Error saving config: {e}")
             return False
 
     def get(self, key_path: str, default: Any = None) -> Any:
-        """
-        Get configuration value by dot-separated key path
-        
-        Args:
-            key_path: Dot-separated path (e.g., "monitoring.interval_seconds")
-            default: Default value if key not found
-            
-        Returns:
-            Configuration value or default
-        """
         keys = key_path.split('.')
         value = self.config
-        
         for key in keys:
             if isinstance(value, dict) and key in value:
                 value = value[key]
             else:
                 return default
-                
         return value
 
     def set(self, key_path: str, value: Any) -> None:
-        """
-        Set configuration value by dot-separated key path
-        
-        Args:
-            key_path: Dot-separated path (e.g., "monitoring.interval_seconds")
-            value: Value to set
-        """
         keys = key_path.split('.')
         config = self.config
-        
         for key in keys[:-1]:
-            if key not in config:
-                config[key] = {}
-            config = config[key]
-            
+            config = config.setdefault(key, {})
         config[keys[-1]] = value
 
     def get_downloads_path(self) -> str:
-        """Get Downloads folder path (from config or system default)"""
         config_path = self.get("downloads_path")
-        if config_path and os.path.exists(config_path):
+        if config_path and Path(config_path).exists():
             return config_path
-        
-        # Use Windows default Downloads folder
-        return os.path.join(os.path.expanduser("~"), "Downloads")
+        try:
+            import winreg
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders")
+            downloads_path, _ = winreg.QueryValueEx(key, "{374DE290-123F-4565-9164-39C4925E467B}")
+            winreg.CloseKey(key)
+            return downloads_path
+        except (ImportError, FileNotFoundError, OSError):
+            return str(Path.home() / "Downloads")
 
     def get_csv_path(self) -> str:
-        """Get CSV file path (absolute or relative to Downloads folder)"""
-        csv_path = self.get("csv_path", "results.csv")
-        
-        if os.path.isabs(csv_path):
-            return csv_path
-        else:
-            # Relative to Downloads folder
-            return os.path.join(self.get_downloads_path(), csv_path)
+        csv_path = Path(self.get("csv_path", "results.csv"))
+        return str(csv_path) if csv_path.is_absolute() else str(Path(self.get_downloads_path()) / csv_path)
 
     def get_excluded_files(self) -> list:
-        """Get list of files to exclude from monitoring"""
         return self.get("organization.excluded_files", [])
 
     def get_categories(self) -> Dict[str, list]:
-        """Get file organization categories"""
         return self.get("organization.categories", {})
 
-    def should_calculate_sha1(self, file_size_bytes: int) -> bool:
-        """
-        Check if SHA1 should be calculated for a file based on size
-        
-        Args:
-            file_size_bytes: File size in bytes
-            
-        Returns:
-            True if SHA1 should be calculated
-        """
-        if not self.get("monitoring.calculate_sha1", True):
-            return False
-            
-        max_size_mb = self.get("performance.max_file_size_for_sha1_mb", 500)
-        max_size_bytes = max_size_mb * 1024 * 1024
-        
-        return file_size_bytes <= max_size_bytes
+    def get_smart_rules(self) -> List[Dict[str, str]]:
+        return self.get("organization.smart_rules", [])
+
+    def _validate_config(self, config: Dict[str, Any]) -> List[str]:
+        errors = []
+        try:
+            all_extensions = []
+            for category, extensions in config.get("organization", {}).get("categories", {}).items():
+                for ext in extensions:
+                    if ext in all_extensions:
+                        errors.append(f"Duplicate extension '{ext}' in multiple categories")
+                    all_extensions.append(ext)
+            perf = config.get("performance", {})
+            if perf.get("max_file_size_for_sha1_mb", 500) < 1:
+                errors.append("max_file_size_for_sha1_mb must be at least 1")
+            if perf.get("chunk_size_bytes", 32768) < 1024:
+                errors.append("chunk_size_bytes should be at least 1024")
+            if config.get("monitoring", {}).get("interval_seconds", 60) < 5:
+                errors.append("interval_seconds should be at least 5")
+            downloads_path = config.get("downloads_path")
+            if downloads_path and not Path(downloads_path).exists():
+                errors.append(f"downloads_path does not exist: {downloads_path}")
+        except Exception as e:
+            errors.append(f"Validation error: {e}")
+        return errors
 
 
-# Global config instance
 _config_instance: Optional[ConfigManager] = None
 
 
 def get_config() -> ConfigManager:
-    """Get global configuration instance"""
     global _config_instance
     if _config_instance is None:
         _config_instance = ConfigManager()
@@ -204,7 +168,6 @@ def get_config() -> ConfigManager:
 
 
 def reload_config() -> ConfigManager:
-    """Reload configuration from file"""
     global _config_instance
     _config_instance = ConfigManager()
     return _config_instance

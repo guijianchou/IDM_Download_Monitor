@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
-"""
-Extensions module for Downloads folder monitoring tool
-This module demonstrates how to add new functionality in a modular way
-"""
+"""Extensions module for Downloads folder monitoring tool"""
 
-import os
 import logging
-from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple
 
@@ -20,40 +15,23 @@ class FileTypeAnalyzer:
         self.logger = logging.getLogger(__name__)
     
     def analyze_files(self, files_data: List[Dict[str, Any]]) -> None:
-        """Analyze file types from monitoring data"""
         self.file_types.clear()
         self.total_files = len(files_data)
         
         for file_info in files_data:
             filename = file_info.get("filename", "")
             if filename:
-                file_ext = self._get_file_extension(filename)
-                if file_ext not in self.file_types:
-                    self.file_types[file_ext] = 0
-                self.file_types[file_ext] += 1
-    
-    def _get_file_extension(self, filename: str) -> str:
-        """Get file extension from filename"""
-        return Path(filename).suffix.lower() or "No Extension"
-    
-    def get_statistics(self) -> Dict[str, Any]:
-        """Get file type statistics"""
-        return {
-            "total_files": self.total_files,
-            "file_types": self.file_types.copy(),
-            "unique_extensions": len(self.file_types),
-        }
+                ext = Path(filename).suffix.lower() or "No Extension"
+                self.file_types[ext] = self.file_types.get(ext, 0) + 1
     
     def display_statistics(self) -> None:
-        """Display file type statistics"""
         self.logger.info("=== File Type Analysis ===")
-        self.logger.info(f"Total files: {self.total_files}")
-        self.logger.info(f"Unique extensions: {len(self.file_types)}")
+        self.logger.info(f"Total files: {self.total_files}, Unique extensions: {len(self.file_types)}")
         
         if self.file_types:
             self.logger.info("File type distribution:")
             sorted_types = sorted(self.file_types.items(), key=lambda x: x[1], reverse=True)
-            for ext, count in sorted_types[:10]:  # Show top 10
+            for ext, count in sorted_types[:10]:
                 percentage = (count / self.total_files) * 100
                 self.logger.info(f"  {ext}: {count} files ({percentage:.1f}%)")
 
@@ -61,74 +39,56 @@ class FileTypeAnalyzer:
 class FileSizeAnalyzer:
     """Analyze file sizes in Downloads folder"""
     
+    SIZE_CATEGORIES = [
+        ("Tiny (< 1KB)", 1024),
+        ("Small (1KB - 1MB)", 1024 * 1024),
+        ("Medium (1MB - 100MB)", 100 * 1024 * 1024),
+        ("Large (100MB - 1GB)", 1024 * 1024 * 1024),
+        ("Huge (> 1GB)", float('inf')),
+    ]
+    
     def __init__(self):
-        self.size_categories: Dict[str, int] = {
-            "Tiny (< 1KB)": 0,
-            "Small (1KB - 1MB)": 0,
-            "Medium (1MB - 100MB)": 0,
-            "Large (100MB - 1GB)": 0,
-            "Huge (> 1GB)": 0,
-        }
+        self.size_counts: Dict[str, int] = {cat[0]: 0 for cat in self.SIZE_CATEGORIES}
         self.total_size: int = 0
         self.logger = logging.getLogger(__name__)
 
-    def analyze_files(self, files_data):
-        """Analyze file sizes from monitoring data"""
-        # Reset counters
-        for category in self.size_categories:
-            self.size_categories[category] = 0
+    def analyze_files(self, files_data: List[Dict[str, Any]]) -> None:
+        for cat in self.size_counts:
+            self.size_counts[cat] = 0
         self.total_size = 0
 
         for file_info in files_data:
-            file_path = file_info.get("full_path", "")
-            if file_path and os.path.exists(file_path):
-                try:
-                    file_size = os.path.getsize(file_path)
-                    self.total_size += file_size
-                    self._categorize_file_size(file_size)
-                except OSError:
-                    continue
-
-    def _categorize_file_size(self, size_bytes):
-        """Categorize file by size"""
-        if size_bytes < 1024:  # < 1KB
-            self.size_categories["Tiny (< 1KB)"] += 1
-        elif size_bytes < 1024 * 1024:  # < 1MB
-            self.size_categories["Small (1KB - 1MB)"] += 1
-        elif size_bytes < 100 * 1024 * 1024:  # < 100MB
-            self.size_categories["Medium (1MB - 100MB)"] += 1
-        elif size_bytes < 1024 * 1024 * 1024:  # < 1GB
-            self.size_categories["Large (100MB - 1GB)"] += 1
-        else:  # >= 1GB
-            self.size_categories["Huge (> 1GB)"] += 1
-
-    def get_statistics(self):
-        """Get file size statistics"""
-        return {
-            "total_size": self.total_size,
-            "size_categories": self.size_categories.copy(),
-            "total_files": sum(self.size_categories.values()),
-        }
+            file_path = file_info.get("full_path")
+            if not file_path:
+                continue
+            try:
+                file_size = Path(file_path).stat().st_size
+                self.total_size += file_size
+                for cat_name, threshold in self.SIZE_CATEGORIES:
+                    if file_size < threshold:
+                        self.size_counts[cat_name] += 1
+                        break
+            except OSError:
+                continue
 
     def display_statistics(self) -> None:
-        """Display file size statistics"""
         self.logger.info("=== File Size Analysis ===")
-        self.logger.info(f"Total size: {self._format_size(self.total_size)}")
-        self.logger.info(f"Total files: {sum(self.size_categories.values())}")
         
-        self.logger.info("Size distribution:")
-        for category, count in self.size_categories.items():
-            if count > 0:
-                self.logger.info(f"  {category}: {count} files")
-    
-    def _format_size(self, size_bytes: int) -> str:
-        """Format file size in human readable format"""
-        size = float(size_bytes)
+        # Format size
+        size = float(self.total_size)
         for unit in ["B", "KB", "MB", "GB", "TB"]:
             if size < 1024.0:
-                return f"{size:.1f} {unit}"
+                size_str = f"{size:.1f} {unit}"
+                break
             size /= 1024.0
-        return f"{size:.1f} PB"
+        else:
+            size_str = f"{size:.1f} PB"
+        
+        self.logger.info(f"Total size: {size_str}, Total files: {sum(self.size_counts.values())}")
+        self.logger.info("Size distribution:")
+        for category, count in self.size_counts.items():
+            if count > 0:
+                self.logger.info(f"  {category}: {count} files")
 
 
 class ChangeDetector:
@@ -136,150 +96,83 @@ class ChangeDetector:
     
     def __init__(self):
         self.previous_data: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
-        self.changes: Dict[str, List[Any]] = {
-            "new_files": [],
-            "modified_files": [],
-            "deleted_files": []
-        }
+        self.changes: Dict[str, List[Any]] = {"new_files": [], "modified_files": [], "deleted_files": []}
         self.logger = logging.getLogger(__name__)
 
-    def set_previous_data(self, files_data):
-        """Set previous monitoring data for comparison"""
-        self.previous_data.clear()
-        for file_info in files_data:
-            key = (file_info["root_dir"], file_info["folder_name"], file_info["filename"])
-            self.previous_data[key] = file_info
+    def set_previous_data(self, files_data: List[Dict[str, Any]]) -> None:
+        self.previous_data = {
+            (f["root_dir"], f["folder_name"], f["filename"]): f for f in files_data
+        }
 
-    def detect_changes(self, current_data):
-        """Detect changes between previous and current data"""
+    def detect_changes(self, current_data: List[Dict[str, Any]]) -> None:
         self.changes = {"new_files": [], "modified_files": [], "deleted_files": []}
-
         current_keys = set()
 
-        # Check current files
         for file_info in current_data:
             key = (file_info["root_dir"], file_info["folder_name"], file_info["filename"])
             current_keys.add(key)
 
             if key in self.previous_data:
-                # File exists in both, check for modifications
-                prev_info = self.previous_data[key]
-                if file_info["sha1"] != prev_info["sha1"] or file_info["timestamp"] != prev_info["timestamp"]:
-                    self.changes["modified_files"].append({"file": file_info, "previous": prev_info})
+                prev = self.previous_data[key]
+                if file_info["sha1"] != prev["sha1"] or file_info["timestamp"] != prev["timestamp"]:
+                    self.changes["modified_files"].append({"file": file_info, "previous": prev})
             else:
-                # New file
                 self.changes["new_files"].append(file_info)
 
-        # Check for deleted files
         for key in self.previous_data:
             if key not in current_keys:
                 self.changes["deleted_files"].append(self.previous_data[key])
 
-    def get_changes_summary(self):
-        """Get summary of detected changes"""
-        return {
-            "new_files_count": len(self.changes["new_files"]),
-            "modified_files_count": len(self.changes["modified_files"]),
-            "deleted_files_count": len(self.changes["deleted_files"]),
-            "total_changes": (
-                len(self.changes["new_files"])
-                + len(self.changes["modified_files"])
-                + len(self.changes["deleted_files"])
-            ),
-        }
-
     def display_changes(self) -> None:
-        """Display detected changes"""
-        summary = self.get_changes_summary()
+        new_count = len(self.changes["new_files"])
+        mod_count = len(self.changes["modified_files"])
+        del_count = len(self.changes["deleted_files"])
+        total = new_count + mod_count + del_count
         
         self.logger.info("=== Change Detection ===")
-        self.logger.info(f"New files: {summary['new_files_count']}")
-        self.logger.info(f"Modified files: {summary['modified_files_count']}")
-        self.logger.info(f"Deleted files: {summary['deleted_files_count']}")
-        self.logger.info(f"Total changes: {summary['total_changes']}")
+        self.logger.info(f"New: {new_count}, Modified: {mod_count}, Deleted: {del_count}, Total: {total}")
         
-        if summary["total_changes"] > 0:
-            if self.changes["new_files"]:
-                self.logger.info("New files:")
-                for file_info in self.changes["new_files"][:5]:  # Show first 5
-                    self.logger.info(f"  + {file_info['filename']}")
-            
-            if self.changes["modified_files"]:
-                self.logger.info("Modified files:")
-                for change in self.changes["modified_files"][:5]:  # Show first 5
-                    file_info = change["file"]
-                    self.logger.info(f"  * {file_info['filename']}")
-            
-            if self.changes["deleted_files"]:
-                self.logger.info("Deleted files:")
-                for file_info in self.changes["deleted_files"][:5]:  # Show first 5
-                    self.logger.info(f"  - {file_info['filename']}")
+        if total > 0:
+            for label, key, prefix in [("New files:", "new_files", "+"), 
+                                        ("Modified files:", "modified_files", "*"),
+                                        ("Deleted files:", "deleted_files", "-")]:
+                items = self.changes[key]
+                if items:
+                    self.logger.info(label)
+                    for item in items[:5]:
+                        f = item["file"] if isinstance(item, dict) and "file" in item else item
+                        self.logger.info(f"  {prefix} {f['filename']}")
 
 
 class ExtensionManager:
     """Manager for all extensions"""
 
     def __init__(self):
-        self.extensions = {}
-        self._register_default_extensions()
+        self.extensions = {
+            "file_type_analyzer": FileTypeAnalyzer(),
+            "file_size_analyzer": FileSizeAnalyzer(),
+            "change_detector": ChangeDetector(),
+        }
 
-    def _register_default_extensions(self):
-        """Register default extensions"""
-        self.register_extension("file_type_analyzer", FileTypeAnalyzer())
-        self.register_extension("file_size_analyzer", FileSizeAnalyzer())
-        self.register_extension("change_detector", ChangeDetector())
-
-    def register_extension(self, name, extension_instance):
-        """Register a new extension"""
-        self.extensions[name] = extension_instance
-
-    def get_extension(self, name):
-        """Get extension by name"""
-        return self.extensions.get(name)
-
-    def run_all_extensions(self, files_data, previous_data=None):
-        """Run all registered extensions"""
-        results = {}
-
-        for name, extension in self.extensions.items():
+    def run_all_extensions(self, files_data: List[Dict[str, Any]], previous_data: Optional[List[Dict[str, Any]]] = None) -> None:
+        for name, ext in self.extensions.items():
             try:
-                if hasattr(extension, "analyze_files"):
-                    extension.analyze_files(files_data)
-
-                if hasattr(extension, "set_previous_data") and previous_data:
-                    extension.set_previous_data(previous_data)
-
-                if hasattr(extension, "detect_changes"):
-                    extension.detect_changes(files_data)
-
-                results[name] = extension
+                if hasattr(ext, "analyze_files"):
+                    ext.analyze_files(files_data)
+                if hasattr(ext, "set_previous_data") and previous_data:
+                    ext.set_previous_data(previous_data)
+                if hasattr(ext, "detect_changes"):
+                    ext.detect_changes(files_data)
             except Exception as e:
-                print(f"Error running extension {name}: {e}")
-                results[name] = None
+                logging.getLogger(__name__).error(f"Error running extension {name}: {e}")
 
-        return results
-
-    def display_all_results(self):
-        """Display results from all extensions"""
-        for name, extension in self.extensions.items():
-            if extension and hasattr(extension, "display_statistics"):
-                extension.display_statistics()
-            elif extension and hasattr(extension, "display_changes"):
-                extension.display_changes()
+    def display_all_results(self) -> None:
+        for ext in self.extensions.values():
+            if hasattr(ext, "display_statistics"):
+                ext.display_statistics()
+            elif hasattr(ext, "display_changes"):
+                ext.display_changes()
 
 
-# Example usage functions
 def create_extension_manager() -> ExtensionManager:
-    """Create and return an extension manager instance"""
     return ExtensionManager()
-
-
-def run_extensions_on_data(
-    files_data: List[Dict[str, Any]],
-    previous_data: Optional[List[Dict[str, Any]]] = None
-) -> Dict[str, Any]:
-    """Run all extensions on the given data"""
-    manager = create_extension_manager()
-    results = manager.run_all_extensions(files_data, previous_data)
-    manager.display_all_results()
-    return results
